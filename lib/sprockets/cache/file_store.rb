@@ -9,14 +9,35 @@ module Sprockets
     #     environment.cache = Sprockets::Cache::FileStore.new("/tmp")
     #
     class FileStore
+      def self.default_logger
+        logger = Logger.new($stderr)
+        logger.level = Logger::FATAL
+        logger
+      end
+
       def initialize(root)
         @root = Pathname.new(root)
+        @logger = self.class.default_logger
       end
 
       # Lookup value in cache
       def [](key)
         pathname = @root.join(key)
-        pathname.exist? ? pathname.open('rb') { |f| Marshal.load(f) } : nil
+        if pathname.exist?
+          pathname.open('rb') do |f|
+            begin
+              Marshal.load(f)
+            rescue Exception => e
+              @logger.error do
+                "#{self.class}[#{path}] could not be unmarshaled: " +
+                  "#{e.class}: #{e.message}"
+              end
+              nil
+            end
+          end
+        else
+          nil
+        end
       end
 
       # Save value to cache
